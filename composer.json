@@ -21,11 +21,11 @@
     ],
     "require": {
         "php": "^7.1",
-        "symfony/console": "^3.4 || ^4.2",
-        "symfony/dependency-injection": "^3.4 || ^4.2",
-        "symfony/finder": "^3.4 || ^4.2",
-        "symfony/framework-bundle": "^3.4.23 || ^4.3",
-        "symfony/http-kernel": "^3.4 || ^4.2"
+        "symfony/console": "^3.4 || ^4.2 || ^5.0",
+        "symfony/dependency-injection": "^3.4 || ^4.2 || ^5.0",
+        "symfony/finder": "^3.4 || ^4.2 || ^5.0",
+        "symfony/framework-bundle": "^3.4.23 || ^4.3 || ^5.0",
+        "symfony/http-kernel": "^3.4 || ^4.2 || ^5.0"
     },
     "require-dev": {
         "doctrine/doctrine-bundle": "^1.12",
