@@ -14,20 +14,56 @@ declare(strict_types=1);
 namespace Sonata\EasyExtendsBundle\Command;
 
 use Sonata\EasyExtendsBundle\Bundle\BundleMetadata;
-use Symfony\Bundle\FrameworkBundle\Command\ContainerAwareCommand;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\HttpKernel\Bundle\BundleInterface;
+use Symfony\Component\HttpKernel\KernelInterface;
+use Sonata\EasyExtendsBundle\Generator\BundleGenerator;
+use Sonata\EasyExtendsBundle\Generator\OrmGenerator;
+use Sonata\EasyExtendsBundle\Generator\OdmGenerator;
+use Sonata\EasyExtendsBundle\Generator\PHPCRGenerator;
+use Sonata\EasyExtendsBundle\Generator\SerializerGenerator;
 
 /**
  * Generate Application entities from bundle entities.
  *
  * @author Thomas Rabaix <thomas.rabaix@sonata-project.org>
  */
-class GenerateCommand extends ContainerAwareCommand
+class GenerateCommand extends Command
 {
+    private $appKernel;
+
+    private $bundleGenerator;
+
+    private $ormGenerator;
+
+    private $odmGenerator;
+
+    private $phpcrGenerator;
+
+    private $serializerGenerator;
+
+    public function __construct(
+        KernelInterface $appKernel,
+        BundleGenerator $bundleGenerator,
+        OrmGenerator $ormGenerator,
+        OdmGenerator $odmGenerator,
+        PHPCRGenerator $phpcrGenerator,
+        SerializerGenerator $serializerGenerator
+    ) {
+        $this->appKernel = $appKernel;
+        $this->bundleGenerator = $bundleGenerator;
+        $this->ormGenerator = $ormGenerator;
+        $this->odmGenerator = $odmGenerator;
+        $this->phpcrGenerator = $phpcrGenerator;
+        $this->serializerGenerator = $serializerGenerator;
+
+        parent::__construct();
+    }
+
     /**
      * {@inheritdoc}
      */
@@ -46,9 +82,21 @@ EOT
         $this->setDescription('Create entities used by Sonata\'s bundles');
 
         $this->addArgument('bundle', InputArgument::IS_ARRAY, 'The bundle name to "easy-extends"');
-        $this->addOption('dest', 'd', InputOption::VALUE_OPTIONAL, 'The base folder where the Application will be created', false);
+        $this->addOption(
+            'dest',
+            'd',
+            InputOption::VALUE_OPTIONAL,
+            'The base folder where the Application will be created',
+            false
+        );
         $this->addOption('namespace', 'ns', InputOption::VALUE_OPTIONAL, 'The namespace for the classes', false);
-        $this->addOption('namespace_prefix', 'nsp', InputOption::VALUE_OPTIONAL, 'The namespace prefix for the classes', false);
+        $this->addOption(
+            'namespace_prefix',
+            'nsp',
+            InputOption::VALUE_OPTIONAL,
+            'The namespace prefix for the classes',
+            false
+        );
     }
 
     /**
@@ -60,26 +108,35 @@ EOT
         if ($destOption) {
             $dest = realpath($destOption);
             if (false === $dest) {
-                throw new \RuntimeException(sprintf('The provided destination folder \'%s\' does not exist!', $destOption));
+                throw new \RuntimeException(
+                    sprintf('The provided destination folder \'%s\' does not exist!', $destOption)
+                );
             }
         } else {
-            $dest = $this->getContainer()->get('kernel')->getRootDir();
+            $dest = $this->appKernel->getRootDir();
         }
 
         $namespace = $input->getOption('namespace');
         if ($namespace) {
             if (!preg_match('/^(?:(?:[[:alnum:]]+|:vendor)\\\\?)+$/', $namespace)) {
-                throw new \InvalidArgumentException(sprintf(
-                    'The provided namespace "%s" is not a valid namespace!',
-                    $namespace
-                ));
+                throw new \InvalidArgumentException(
+                    sprintf(
+                        'The provided namespace "%s" is not a valid namespace!',
+                        $namespace
+                    )
+                );
             }
         } else {
             $namespace = 'Application\:vendor';
         }
 
         $configuration = [
-            'application_dir' => sprintf('%s%s%s', $dest, \DIRECTORY_SEPARATOR, str_replace('\\', \DIRECTORY_SEPARATOR, $namespace)),
+            'application_dir' => sprintf(
+                '%s%s%s',
+                $dest,
+                \DIRECTORY_SEPARATOR,
+                str_replace('\\', \DIRECTORY_SEPARATOR, $namespace)
+            ),
             'namespace' => $namespace,
             'namespace_prefix' => '',
         ];
@@ -96,7 +153,7 @@ EOT
             $output->writeln('');
             $output->writeln('  Bundles availables :');
             /** @var BundleInterface $bundle */
-            foreach ($this->getContainer()->get('kernel')->getBundles() as $bundle) {
+            foreach ($this->appKernel->getBundles() as $bundle) {
                 $bundleMetadata = new BundleMetadata($bundle, $configuration);
 
                 if (!$bundleMetadata->isExtendable()) {
@@ -112,10 +169,12 @@ EOT
                 $processed = $this->generate($bundleName, $configuration, $output);
 
                 if (!$processed) {
-                    throw new \RuntimeException(sprintf(
-                        '<error>The bundle \'%s\' does not exist or is not registered in the kernel!</error>',
-                        $bundleName
-                    ));
+                    throw new \RuntimeException(
+                        sprintf(
+                            '<error>The bundle \'%s\' does not exist or is not registered in the kernel!</error>',
+                            $bundleName
+                        )
+                    );
                 }
             }
         }
@@ -128,7 +187,7 @@ EOT
     /**
      * Generates a bundle entities from a bundle name.
      *
-     * @param string          $bundleName
+     * @param string $bundleName
      * @param OutputInterface $output
      *
      * @return bool
@@ -138,7 +197,7 @@ EOT
         $processed = false;
 
         /** @var BundleInterface $bundle */
-        foreach ($this->getContainer()->get('kernel')->getBundles() as $bundle) {
+        foreach ($this->appKernel->getBundles() as $bundle) {
             if ($bundle->getName() !== $bundleName) {
                 continue;
             }
@@ -155,33 +214,35 @@ EOT
 
             // generate the bundle file
             if (!$bundleMetadata->isValid()) {
-                $output->writeln(sprintf(
-                    '%s : <comment>wrong directory structure</comment>',
-                    $bundleMetadata->getClass()
-                ));
+                $output->writeln(
+                    sprintf(
+                        '%s : <comment>wrong directory structure</comment>',
+                        $bundleMetadata->getClass()
+                    )
+                );
 
                 continue;
             }
 
             $output->writeln(sprintf('Processing bundle : "<info>%s</info>"', $bundleMetadata->getName()));
 
-            $this->getContainer()->get('sonata.easy_extends.generator.bundle')
+            $this->bundleGenerator
                 ->generate($output, $bundleMetadata);
 
             $output->writeln(sprintf('Processing Doctrine ORM : "<info>%s</info>"', $bundleMetadata->getName()));
-            $this->getContainer()->get('sonata.easy_extends.generator.orm')
+            $this->ormGenerator
                 ->generate($output, $bundleMetadata);
 
             $output->writeln(sprintf('Processing Doctrine ODM : "<info>%s</info>"', $bundleMetadata->getName()));
-            $this->getContainer()->get('sonata.easy_extends.generator.odm')
+            $this->odmGenerator
                 ->generate($output, $bundleMetadata);
 
             $output->writeln(sprintf('Processing Doctrine PHPCR : "<info>%s</info>"', $bundleMetadata->getName()));
-            $this->getContainer()->get('sonata.easy_extends.generator.phpcr')
+            $this->phpcrGenerator
                 ->generate($output, $bundleMetadata);
 
             $output->writeln(sprintf('Processing Serializer config : "<info>%s</info>"', $bundleMetadata->getName()));
-            $this->getContainer()->get('sonata.easy_extends.generator.serializer')
+            $this->serializerGenerator
                 ->generate($output, $bundleMetadata);
 
             $output->writeln('');

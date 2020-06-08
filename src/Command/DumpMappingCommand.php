@@ -13,8 +13,9 @@ declare(strict_types=1);
 
 namespace Sonata\EasyExtendsBundle\Command;
 
+use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Tools\Export\ClassMetadataExporter;
-use Symfony\Bundle\FrameworkBundle\Command\ContainerAwareCommand;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -24,8 +25,17 @@ use Symfony\Component\Console\Output\OutputInterface;
  *
  * @author Thomas Rabaix <thomas.rabaix@sonata-project.org>
  */
-class DumpMappingCommand extends ContainerAwareCommand
+class DumpMappingCommand extends Command
 {
+    private $entityManager;
+
+    public function __construct(EntityManagerInterface $entityManager)
+    {
+        $this->entityManager = $entityManager;
+
+        parent::__construct();
+    }
+
     /**
      * {@inheritdoc}
      */
@@ -43,7 +53,7 @@ class DumpMappingCommand extends ContainerAwareCommand
      */
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $factory = $this->getContainer()->get('doctrine')->getManager($input->getArgument('manager'))->getMetadataFactory();
+        $factory = $this->entityManager->getMetadataFactory();
 
         $metadata = $factory->getMetadataFor($input->getArgument('model'));
 
